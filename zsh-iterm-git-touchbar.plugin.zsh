@@ -3,10 +3,16 @@
 ##############################################
 
 # TODO
-# - optimize bind / unbind phase to not flash twice
 # - refactor to have last branches visited
+# - add git add and git commit
+# - add force push
+# - add pull with rebase
+
+# constants
+FN_KEYS_MAX=24
 
 # states
+HOME=''
 BRANCHES='branches'
 
 # executes non standard escape codes for iterm
@@ -52,10 +58,6 @@ function setKeyLabel(){
   itermSet "SetKeyLabel=$1=$2"
 }
 
-function clearTouchbar() {
-  itermSet "PopKeyLabels"
-}
-
 function unbindTouchbar() {
   for fnKey in "$fnKeys[@]"; do
     bindkey -s "$fnKey" ''
@@ -63,10 +65,14 @@ function unbindTouchbar() {
 }
 
 function displayDefault() {
-  clearTouchbar
-  unbindTouchbar
 
-  touchBarState=''
+  # remove touchbar bindings if in a different state
+  if [[ $touchBarState != $HOME ]]; then
+    unbindTouchbar
+  fi
+
+  # set state to home
+  touchBarState=$HOME
 
   # Check if the current directory is in a Git repository.
   command git rev-parse --is-inside-work-tree &>/dev/null || return
@@ -83,6 +89,11 @@ function displayDefault() {
     setKeyLabel 'F3' 'pull'
     setKeyLabel 'F4' 'push'
 
+    # set the rest of the keys blank
+    for i in {5..$FN_KEYS_MAX}; do
+      setKeyLabel "F$i" ' '
+    done
+
     # bind git actions
     bindkey -s $F1 'git status \n'
     bindkey    $F2 displayBranches
@@ -92,22 +103,29 @@ function displayDefault() {
 }
 
 function displayBranches() {
+
   # List of branches for current repo
   gitBranches=($(node -e "console.log('$(echo $(git branch))'.split(/[ ,]+/).toString().split(',').join(' ').toString().replace('* ', ''))"))
 
-  clearTouchbar
-  unbindTouchbar
+  # remove touchbar bindings if in a different state
+  if [[ $touchBarState != $BRANCHES ]]; then
+    unbindTouchbar
+  fi
 
-  # change to branches state
+  # set state to branches
   touchBarState=$BRANCHES
 
-  fnKeysIndex=1
-
   # for each branch name, bind it to a key
+  fnKeysIndex=1
   for branch in "$gitBranches[@]"; do
     fnKeysIndex=$((fnKeysIndex + 1))
     bindkey -s $fnKeys[$fnKeysIndex] "git checkout $branch \n"
     setKeyLabel "F$fnKeysIndex" $branch
+  done
+
+  # set the rest of the keys blank
+  for i in {$((fnKeysIndex + 1))..$FN_KEYS_MAX}; do
+    setKeyLabel "F$i" ' '
   done
 
   # bind back button
